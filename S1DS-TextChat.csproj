@@ -1,0 +1,122 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Local build configuration.
+    Import order:
+      1. local.build.props in this directory  – used when checked out as a standalone project
+      2. ../../local.build.props              – fallback when nested inside the DedicatedServerMod repo
+    Only one is imported (the first that exists).
+  -->
+  <Import Project="local.build.props" Condition="Exists('local.build.props')" />
+  <Import Project="../../local.build.props" Condition="!Exists('local.build.props') and Exists('../../local.build.props')" />
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>default</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AssemblyName>S1DS-TextChat</AssemblyName>
+    <RootNamespace>S1DS.TextChat</RootNamespace>
+    <Configurations>Mono_Client;Mono_Server</Configurations>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <MonoClientGamePath Condition="'$(MonoClientGamePath)' == ''">$(MonoGamePath)</MonoClientGamePath>
+    <MonoServerGamePath Condition="'$(MonoServerGamePath)' == ''">$(MonoGamePath)</MonoServerGamePath>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)'=='Mono_Client'">
+    <GamePath>$(MonoClientGamePath)</GamePath>
+    <ManagedPath>$([System.IO.Path]::Combine('$(GamePath)', 'Schedule I_Data', 'Managed'))</ManagedPath>
+    <MelonLoaderPath>$([System.IO.Path]::Combine('$(GamePath)', 'MelonLoader', 'net35'))</MelonLoaderPath>
+    <ModsPath>$([System.IO.Path]::Combine('$(GamePath)', 'Mods'))</ModsPath>
+    <DefineConstants>MONO;CLIENT</DefineConstants>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+    <DeploymentPath Condition="'$(ClientDeploymentPath)' != ''">$(ClientDeploymentPath)</DeploymentPath>
+    <DeploymentPath Condition="'$(ClientDeploymentPath)' == ''">$(ModsPath)</DeploymentPath>
+    <!-- Look for S1DS DLL in the deployment path first (it's installed there), fall back to game Mods/ -->
+    <S1DSModSearchPath Condition="'$(ClientDeploymentPath)' != ''">$(ClientDeploymentPath)</S1DSModSearchPath>
+    <S1DSModSearchPath Condition="'$(ClientDeploymentPath)' == ''">$(ModsPath)</S1DSModSearchPath>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)'=='Mono_Server'">
+    <GamePath>$(MonoServerGamePath)</GamePath>
+    <ManagedPath>$([System.IO.Path]::Combine('$(GamePath)', 'Schedule I_Data', 'Managed'))</ManagedPath>
+    <MelonLoaderPath>$([System.IO.Path]::Combine('$(GamePath)', 'MelonLoader', 'net35'))</MelonLoaderPath>
+    <ModsPath>$([System.IO.Path]::Combine('$(GamePath)', 'Mods'))</ModsPath>
+    <DefineConstants>MONO;SERVER</DefineConstants>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+    <DeploymentPath Condition="'$(ServerDeploymentPath)' != ''">$(ServerDeploymentPath)</DeploymentPath>
+    <DeploymentPath Condition="'$(ServerDeploymentPath)' == ''">$(ModsPath)</DeploymentPath>
+    <!-- Look for S1DS DLL in the deployment path first (it's installed there), fall back to game Mods/ -->
+    <S1DSModSearchPath Condition="'$(ServerDeploymentPath)' != ''">$(ServerDeploymentPath)</S1DSModSearchPath>
+    <S1DSModSearchPath Condition="'$(ServerDeploymentPath)' == ''">$(ModsPath)</S1DSModSearchPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Newtonsoft.Json is provided by MelonLoader at runtime; reference here is compile-time only -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3">
+      <PrivateAssets>all</PrivateAssets>
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <!-- Include both source files unconditionally so VS Code IntelliSense can resolve them
+       regardless of which configuration (Debug/Release/Mono_Client/Mono_Server) is active. -->
+  <ItemGroup Condition="'$(Configuration)'!='Mono_Client' and '$(Configuration)'!='Mono_Server'">
+    <Compile Include="S1DSTextChatClientMod.cs" />
+    <Compile Include="S1DSTextChatServerMod.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(Configuration)'=='Mono_Client'">
+    <Compile Include="S1DSTextChatClientMod.cs" />
+    <Reference Include="MelonLoader">
+      <HintPath>$(MelonLoaderPath)/MelonLoader.dll</HintPath>
+    </Reference>
+    <Reference Include="DedicatedServerMod_Mono_Client">
+      <HintPath>$(S1DSModSearchPath)/DedicatedServerMod_Mono_Client.dll</HintPath>
+    </Reference>
+    <Reference Include="FishNet.Runtime">
+      <HintPath>$(ManagedPath)/FishNet.Runtime.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(ManagedPath)/UnityEngine.CoreModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>$(ManagedPath)/UnityEngine.IMGUIModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(ManagedPath)/UnityEngine.TextRenderingModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>$(ManagedPath)/UnityEngine.InputLegacyModule.dll</HintPath>
+    </Reference>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(ManagedPath)/Assembly-CSharp.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(Configuration)'=='Mono_Server'">
+    <Compile Include="S1DSTextChatServerMod.cs" />
+    <Reference Include="MelonLoader">
+      <HintPath>$(MelonLoaderPath)/MelonLoader.dll</HintPath>
+    </Reference>
+    <Reference Include="DedicatedServerMod_Mono_Server">
+      <HintPath>$(S1DSModSearchPath)/DedicatedServerMod_Mono_Server.dll</HintPath>
+    </Reference>
+    <Reference Include="FishNet.Runtime">
+      <HintPath>$(ManagedPath)/FishNet.Runtime.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(ManagedPath)/UnityEngine.CoreModule.dll</HintPath>
+    </Reference>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(ManagedPath)/Assembly-CSharp.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <MakeDir Condition="'$(DeploymentPath)' != '' and !Exists('$(DeploymentPath)')" Directories="$(DeploymentPath)" />
+    <Copy Condition="'$(DeploymentPath)' != ''" SourceFiles="$(TargetPath)" DestinationFolder="$(DeploymentPath)" SkipUnchangedFiles="false" Retries="5" RetryDelayMilliseconds="1000" />
+  </Target>
+</Project>

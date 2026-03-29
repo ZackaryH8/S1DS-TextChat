@@ -1,0 +1,29 @@
+# User-specific build configuration — never commit
+local.build.props
+
+# Build outputs
+bin/
+obj/
+
+# IDE
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.DotSettings.user
+
+# Local scripts and release zips
+pack.sh
+*.zip
+
+# OS
+.DS_Store
+Thumbs.db
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+project.lock.json
+/ScheduleOne

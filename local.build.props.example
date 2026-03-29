@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  S1DS-TextChat  —  Local Build Configuration
+  ================================================
+  Copy this file to 'local.build.props' and fill in your paths.
+  'local.build.props' is git-ignored and is never committed.
+
+  ── SCENARIO A  ·  mod is checked out INSIDE the DedicatedServerMod repo ──────
+  You most likely do NOT need this file at all.  When no local.build.props exists
+  in this directory the project automatically falls back to the root repo's own
+  local.build.props (../../local.build.props) for game paths, and the S1DSApiPath
+  defaults to ../../bin which is where the repo builds its DLLs.
+
+  If you do need a local.build.props here (e.g. a different deployment path for
+  the mod), you can create a minimal one that sets only what you need:
+
+      <Project>
+        <PropertyGroup>
+          <ServerDeploymentPath>/my/server/Mods</ServerDeploymentPath>
+        </PropertyGroup>
+      </Project>
+
+  ── SCENARIO B  ·  mod is a STANDALONE project (own repo / folder) ────────────
+  Copy this file to local.build.props and fill in all three required sections:
+    1. S1DSApiPath    – path to the built S1DS DLLs
+    2. game paths     – where Schedule I is installed
+    3. deployment     – (optional) where to copy the built mod DLL
+-->
+<Project>
+  <PropertyGroup>
+
+    <!--
+      ── 1. S1DS API path ───────────────────────────────────────────────────────
+      Point this to the 'bin' directory of a built checkout of DedicatedServerMod.
+      That folder must contain:
+          Mono_Client/netstandard2.1/DedicatedServerMod_Mono_Client.dll
+          Mono_Client/netstandard2.1/MelonLoader.dll
+          Mono_Client/netstandard2.1/FishNet.Runtime.dll
+          Mono_Server/netstandard2.1/DedicatedServerMod_Mono_Server.dll
+          ...etc.
+
+      Windows example:  C:\Dev\S1DedicatedServers\bin
+      Linux   example:  /home/you/dev/S1DedicatedServers/bin
+    -->
+    <S1DSApiPath>/path/to/DedicatedServerMod/bin</S1DSApiPath>
+
+    <!--
+      ── 2. Game paths ──────────────────────────────────────────────────────────
+      MonoClientGamePath  – your Schedule I client install (Steamapps or a copy)
+      MonoServerGamePath  – your Schedule I dedicated server install
+      Both can point to the same folder if you run both from one installation.
+
+      Windows example:  D:\SteamLibrary\steamapps\common\Schedule I
+      Linux   example:  /home/you/.local/share/Steam/steamapps/common/Schedule I
+    -->
+    <MonoClientGamePath>/path/to/Schedule I</MonoClientGamePath>
+    <MonoServerGamePath>/path/to/Schedule I</MonoServerGamePath>
+
+    <!--
+      ── 3. Deployment paths (optional) ────────────────────────────────────────
+      After a successful build the DLL is copied here.
+      Defaults to <GamePath>/Mods if not set.
+    -->
+    <!-- <ClientDeploymentPath>/path/to/client/Mods</ClientDeploymentPath> -->
+    <!-- <ServerDeploymentPath>/path/to/server/Mods</ServerDeploymentPath> -->
+
+  </PropertyGroup>
+</Project>
