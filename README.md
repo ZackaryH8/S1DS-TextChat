@@ -9,12 +9,17 @@ A lightweight text chat overlay for Schedule I clients connected to a dedicated 
 - Open **local** or **global** chat with configurable keys (defaults **U** / **Y**)
 - Local messages are routed only to nearby players; global messages are sent to everyone on the server
 - Chat panel is anchored near the **top-left** corner of the screen
-- Messages use rich-text formatting for prefixes and bold player names
+- Messages are rendered as plain text (no rich-text parsing)
 - Chat fades out after inactivity and reappears immediately when a new message arrives
 - Long messages wrap cleanly inside the panel
 - The client shows your own sent message immediately without waiting for a server echo
+- Slash-prefixed messages (for example `/help`, `/settime 12:00`) execute through the server command system using your player permissions
+- Built-in moderation commands: `/mute <player> <duration>` and `/unmute <player>` (privileged users only)
 - While chat is open, the mod blocks normal gameplay input such as looking, moving inventory focus, and punching
 - Message history is capped at **50** entries
+- Input history (session-only) stores up to **100** submitted entries; use **Up/Down** while chat is open
+- Outbound messages are sanitized and blocked client-side if they exceed `maxMessageLength`
+- Server sanitizes all inbound text and enforces authoritative chat + command rate limits
 
 ## Configuration
 
@@ -30,8 +35,19 @@ The file is created with defaults on first launch. Available options:
 |-----|---------|-------------|
 | `localChatKey` | `"U"` | Key to open local chat. Any [Unity `KeyCode`](https://docs.unity3d.com/ScriptReference/KeyCode.html) name is accepted. |
 | `globalChatKey` | `"Y"` | Key to open global chat. Any [Unity `KeyCode`](https://docs.unity3d.com/ScriptReference/KeyCode.html) name is accepted. |
-| `localChatRadius` | `5.0` | Server-side radius, in Unity units, used to deliver local chat. |
+| `localChatRadius` | `5` | Server-side radius, in Unity units, used to deliver local chat. |
 | `maxMessageLength` | `200` | Server-side maximum message length. |
+| `rateLimitWindowSeconds` | `5` | Size of one spam-check window in seconds. Counters reset when a new window starts. |
+| `maxChatMessagesPerWindow` | `6` | Max normal chat messages one player can send inside a single window. Message #7 in the same window is blocked. |
+| `maxCommandsPerWindow` | `4` | Max slash commands per player per window. |
+| `bypassRateLimitForPrivileged` | `false` | If true, players with elevated server permissions (Administrator and above) (via `PlayerPermissions`) bypass limits. |
+| `rateLimitExemptPlayerIds` | `[]` | Optional SteamID allowlist for extra rate-limit bypass entries. |
+
+Rate limit example:
+
+- If rateLimitWindowSeconds is 5 and maxChatMessagesPerWindow is 6, each player may send up to 6 normal chat messages every 5 seconds.
+- In that same 5-second window, the 7th normal chat message is denied.
+- When the next 5-second window begins, that player can send up to 6 again.
 
 Example:
 
@@ -39,10 +55,24 @@ Example:
 {
   "localChatKey": "U",
   "globalChatKey": "Y",
-  "localChatRadius": 5.0,
-  "maxMessageLength": 200
+  "localChatRadius": 5,
+  "maxMessageLength": 200,
+  "rateLimitWindowSeconds": 5,
+  "maxChatMessagesPerWindow": 6,
+  "maxCommandsPerWindow": 4,
+  "bypassRateLimitForPrivileged": false,
+  "rateLimitExemptPlayerIds": []
 }
 ```
+
+## Moderation Commands
+
+- `/mute <player> <duration>`: Temporarily blocks that player from sending chat through this mod.
+- `/unmute <player>`: Removes an active mute immediately.
+- Duration supports suffixes: `s`, `m`, `h`, `d` (examples: `30s`, `10m`, `1h`, `2d`).
+- Aliases like `1hr`, `1hour`, and `10min` are accepted.
+- `<player>` can be a SteamID/TrustedUniqueId or player name. If a partial match is ambiguous, the command is rejected.
+- Requires elevated permissions (same privilege check used by rate-limit bypass logic).
 
 ## Build
 
@@ -99,3 +129,4 @@ No extra configuration is needed.  The project automatically inherits game paths
 - The project file selects the client or server source file based on the build configuration, so each side gets a clean mod class without any `#if CLIENT` / `#if SERVER` guards.
 - The client and server each create their own `UserData/S1DS-TextChat.json` file in their respective install folders.
 - The on-screen chat history cap is fixed at 50 messages and is not configurable.
+- Input recall history is session-only and clears when the client mod/session resets.

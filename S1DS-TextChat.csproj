@@ -64,11 +64,17 @@
   <!-- Include both source files unconditionally so VS Code IntelliSense can resolve them
        regardless of which configuration (Debug/Release/Mono_Client/Mono_Server) is active. -->
   <ItemGroup Condition="'$(Configuration)'!='Mono_Client' and '$(Configuration)'!='Mono_Server'">
+    <Compile Include="TextChatShared.cs" />
+    <Compile Include="Client/TextChatClientModels.cs" />
+    <Compile Include="Server/TextChatServerModels.cs" />
     <Compile Include="S1DSTextChatClientMod.cs" />
     <Compile Include="S1DSTextChatServerMod.cs" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(Configuration)'=='Mono_Client'">
+    <Compile Include="TextChatShared.cs" />
+    <Compile Include="Client/TextChatClientModels.cs" />
+    <Compile Include="Server/TextChatServerModels.cs" />
     <Compile Include="S1DSTextChatClientMod.cs" />
     <Reference Include="MelonLoader">
       <HintPath>$(MelonLoaderPath)/MelonLoader.dll</HintPath>
@@ -97,6 +103,9 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(Configuration)'=='Mono_Server'">
+    <Compile Include="TextChatShared.cs" />
+    <Compile Include="Client/TextChatClientModels.cs" />
+    <Compile Include="Server/TextChatServerModels.cs" />
     <Compile Include="S1DSTextChatServerMod.cs" />
     <Reference Include="MelonLoader">
       <HintPath>$(MelonLoaderPath)/MelonLoader.dll</HintPath>

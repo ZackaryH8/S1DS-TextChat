@@ -12,68 +12,37 @@ using ScheduleOne.PlayerScripts;
 using ScheduleOne.UI;
 using UnityEngine;
 
-[assembly: MelonInfo(typeof(S1DSMod.TextChat.S1DSTextChatClientMod), "S1DS-TextChat", "1.0.0", "ZackaryH8")]
+[assembly: MelonInfo(typeof(S1DSMod.TextChat.S1DSTextChatClientMod), "S1DS-TextChat", "1.1.0", "ZackaryH8")]
+[assembly: S1DSClientModIdentity("zackaryh8.textchat", "1.1.0")]
 [assembly: MelonGame("TVGS", "Schedule I")]
 
 namespace S1DSMod.TextChat
 {
-    // ── Shared command strings ────────────────────────────────────────────────
-    internal static class Cmds
-    {
-        public const string Send = "textchat_send";
-        public const string Recv = "textchat_recv";
-    }
-
-    // ── Payload types (mirror of server-side) ─────────────────────────────────
-    [Serializable]
-    internal sealed class ChatSendPayload
-    {
-        [JsonProperty("text")] public string Text { get; set; } = string.Empty;
-        [JsonProperty("scope")] public string Scope { get; set; } = "global";
-    }
-
-    [Serializable]
-    internal sealed class ChatRecvPayload
-    {
-        [JsonProperty("sender")] public string Sender { get; set; } = string.Empty;
-        [JsonProperty("text")] public string Text { get; set; } = string.Empty;
-        [JsonProperty("scope")] public string Scope { get; set; } = "global";
-    }
-
-    // ── Client configuration ──────────────────────────────────────────────────
-    [Serializable]
-    internal sealed class ClientSettings
-    {
-        [JsonProperty("localChatKey")] public string LocalChatKey { get; set; } = "U";
-        [JsonProperty("globalChatKey")] public string GlobalChatKey { get; set; } = "Y";
-    }
-
-    internal sealed class ChatEntry
-    {
-        public string Display { get; set; }
-        public bool IsLocal { get; set; }
-    }
-
-    internal enum InputMode { None, Global, Local }
-
     // ── Client mod ────────────────────────────────────────────────────────────
     public sealed class S1DSTextChatClientMod : ClientMelonModBase
     {
         // ── Layout constants ─────────────────────────────────────────────────
         private const int MAX_MESSAGES = 50;
-        private const float PANEL_W = 360f;
-        private const float MSG_AREA_H = 160f;
+        private const float PANEL_W = 450f;
+        private const float MSG_AREA_H = 200f;
         private const float INPUT_H = 24f;
         private const float PAD = 6f;
         private const float FADE_DELAY = 10f;   // seconds idle before fade begins
         private const float FADE_DURATION = 1.5f;  // seconds to fully fade out
+        private const int MAX_INPUT_HISTORY = 100;
 
         // ── Colours ──────────────────────────────────────────────────────────
         private static readonly Color C_BG = new Color(0.07f, 0.08f, 0.11f, 0.35f);  // low-opacity bg
         private static readonly Color C_LABEL_G = new Color(1.00f, 0.82f, 0.20f, 1.00f);  // gold  (input bar)
         private static readonly Color C_LABEL_L = new Color(0.30f, 0.90f, 0.45f, 1.00f);  // green (input bar)
         private static readonly Color C_INPUT_BG = new Color(0.10f, 0.11f, 0.15f, 1.00f);
+        private static readonly Color C_INPUT_BG_FOCUSED = new Color(0.13f, 0.15f, 0.20f, 1.00f);
         private static readonly Color C_FIELD_BG = new Color(0.15f, 0.16f, 0.21f, 1.00f);
+        private static readonly Color C_FIELD_BG_FOCUSED = new Color(0.19f, 0.21f, 0.28f, 1f);
+        private static readonly Color C_SCROLL_TRACK = new Color(0.11f, 0.12f, 0.17f, 0.95f);
+        private static readonly Color C_SCROLL_THUMB = new Color(0.36f, 0.66f, 0.92f, 0.90f);
+        private static readonly Color C_SCROLL_THUMB_HOVER = new Color(0.47f, 0.75f, 0.98f, 0.95f);
+        private static readonly Color C_SCROLL_THUMB_ACTIVE = new Color(0.30f, 0.58f, 0.87f, 1.00f);
         private static readonly Color C_HINT = new Color(0.50f, 0.52f, 0.58f, 0.75f);
 
         // ── Runtime state ────────────────────────────────────────────────────
@@ -86,18 +55,25 @@ namespace S1DSMod.TextChat
         private bool _scrollToBottom;
         private float _fadeTimer;
         private float _fadeAlpha = 1f;
+        private int _historyIndex = -1;
+        private string _historyScratch = string.Empty;
 
         private ClientSettings _settings = new ClientSettings();
         private readonly List<ChatEntry> _messages = new List<ChatEntry>();
+        private readonly List<string> _inputHistory = new List<string>();
 
         // ── IMGUI styles (lazy-built once inside a GUI context) ───────────────
         private GUIStyle _sPanel;
         private GUIStyle _sMsgGlobal;
         private GUIStyle _sMsgLocal;
         private GUIStyle _sInputBg;
+        private GUIStyle _sInputBgFocused;
         private GUIStyle _sField;
         private GUIStyle _sLabel;
         private GUIStyle _sHint;
+        private GUIStyle _sVScrollbar;
+        private GUIStyle _sVScrollbarThumb;
+        private GUIStyle _sVScrollbarBtn;
         private bool _stylesReady;
 
         // ── Lifecycle ────────────────────────────────────────────────────────
@@ -183,21 +159,23 @@ namespace S1DSMod.TextChat
 
                 if (_inputMode == InputMode.None && _ready)
                 {
-                    // Open local chat with configured key (default T)
+                    // Open local chat with configured key (default U)
                     if (MatchesKey(e, _settings.LocalChatKey))
                     {
                         _inputMode = InputMode.Local;
                         _draft = string.Empty;
+                        ResetHistoryNavigation();
                         _wantFocus = true;
                         _suppressChar = true;
                         SetChatFocus(true);
                         e.Use();
                     }
-                    // Open global chat with configured key (default G)
+                    // Open global chat with configured key (default Y)
                     else if (MatchesKey(e, _settings.GlobalChatKey))
                     {
                         _inputMode = InputMode.Global;
                         _draft = string.Empty;
+                        ResetHistoryNavigation();
                         _wantFocus = true;
                         _suppressChar = true;
                         SetChatFocus(true);
@@ -209,6 +187,16 @@ namespace S1DSMod.TextChat
                     if (isReturn)
                     {
                         SubmitMessage();
+                        e.Use();
+                    }
+                    else if (e.keyCode == KeyCode.UpArrow)
+                    {
+                        RecallOlderInput();
+                        e.Use();
+                    }
+                    else if (e.keyCode == KeyCode.DownArrow)
+                    {
+                        RecallNewerInput();
                         e.Use();
                     }
                 }
@@ -244,9 +232,18 @@ namespace S1DSMod.TextChat
                         _scrollToBottom = false;
                 }
 
+                var prevVScrollbar = GUI.skin.verticalScrollbar;
+                var prevVScrollbarThumb = GUI.skin.verticalScrollbarThumb;
+                var prevVScrollbarUpButton = GUI.skin.verticalScrollbarUpButton;
+                var prevVScrollbarDownButton = GUI.skin.verticalScrollbarDownButton;
+                GUI.skin.verticalScrollbar = _sVScrollbar;
+                GUI.skin.verticalScrollbarThumb = _sVScrollbarThumb;
+                GUI.skin.verticalScrollbarUpButton = _sVScrollbarBtn;
+                GUI.skin.verticalScrollbarDownButton = _sVScrollbarBtn;
+
                 _scrollPos = GUILayout.BeginScrollView(
                     _scrollPos, false, false,
-                    GUIStyle.none, GUI.skin.verticalScrollbar,
+                    GUIStyle.none, _sVScrollbar,
                     GUILayout.Width(PANEL_W - PAD * 2f),
                     GUILayout.Height(MSG_AREA_H));
                 {
@@ -255,12 +252,20 @@ namespace S1DSMod.TextChat
                 }
                 GUILayout.EndScrollView();
 
+                GUI.skin.verticalScrollbar = prevVScrollbar;
+                GUI.skin.verticalScrollbarThumb = prevVScrollbarThumb;
+                GUI.skin.verticalScrollbarUpButton = prevVScrollbarUpButton;
+                GUI.skin.verticalScrollbarDownButton = prevVScrollbarDownButton;
+
                 // ── Input bar ─────────────────────────────────────────────────
                 if (_inputMode != InputMode.None)
                 {
                     GUILayout.Space(PAD);
 
-                    GUILayout.BeginHorizontal(_sInputBg, GUILayout.Height(INPUT_H));
+                    bool isDraftFocused = GUI.GetNameOfFocusedControl() == "ChatDraft";
+                    GUIStyle inputStyle = isDraftFocused ? _sInputBgFocused : _sInputBg;
+
+                    GUILayout.BeginHorizontal(inputStyle, GUILayout.Height(INPUT_H));
                     {
                         bool isGlobal = (_inputMode == InputMode.Global);
 
@@ -331,13 +336,33 @@ namespace S1DSMod.TextChat
 
         private void SubmitMessage()
         {
-            string text = _draft?.Trim() ?? string.Empty;
+            string text = TextChatSanitizer.Sanitize(_draft);
+            if (string.IsNullOrEmpty(text))
+            {
+                CancelChatInput();
+                return;
+            }
+
+            int maxLen = Math.Max(1, _settings.MaxMessageLength);
+            if (text.Length > maxLen)
+            {
+                AddMessage(new ChatEntry
+                {
+                    Display = $"[Server] Message too long ({text.Length}/{maxLen}).",
+                    IsLocal = false
+                });
+                _wantFocus = true;
+                return;
+            }
+
             InputMode mode = _inputMode;
 
             _draft = string.Empty;
             _inputMode = InputMode.None;
+            ResetHistoryNavigation();
             SetChatFocus(false);
-            if (string.IsNullOrEmpty(text)) return;
+
+            AddInputHistory(text);
 
             bool isLocal = mode == InputMode.Local;
             var payload = new ChatSendPayload
@@ -346,6 +371,9 @@ namespace S1DSMod.TextChat
                 Scope = isLocal ? "local" : "global"
             };
             CustomMessaging.SendToServer(Cmds.Send, JsonConvert.SerializeObject(payload));
+
+            if (text.StartsWith("/", StringComparison.Ordinal))
+                return;
 
             // Show own message immediately without waiting for server echo
             string display = BuildDisplay("You", text, isLocal);
@@ -362,20 +390,80 @@ namespace S1DSMod.TextChat
             if (!action.Used && _inputMode != InputMode.None && action.exitType == ExitType.Escape)
             {
                 action.Used = true;
-                _inputMode = InputMode.None;
-                _draft = string.Empty;
-                SetChatFocus(false);
+                CancelChatInput();
             }
+        }
+
+        private void CancelChatInput()
+        {
+            _inputMode = InputMode.None;
+            _draft = string.Empty;
+            ResetHistoryNavigation();
+            SetChatFocus(false);
+        }
+
+        private void AddInputHistory(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return;
+            _inputHistory.Add(text);
+            if (_inputHistory.Count > MAX_INPUT_HISTORY)
+                _inputHistory.RemoveAt(0);
+        }
+
+        private void ResetHistoryNavigation()
+        {
+            _historyIndex = -1;
+            _historyScratch = string.Empty;
+        }
+
+        private void RecallOlderInput()
+        {
+            if (_inputHistory.Count == 0) return;
+
+            if (_historyIndex < 0)
+            {
+                _historyScratch = _draft;
+                _historyIndex = _inputHistory.Count - 1;
+            }
+            else if (_historyIndex > 0)
+            {
+                _historyIndex--;
+            }
+
+            _draft = _inputHistory[_historyIndex];
+            _wantFocus = true;
+        }
+
+        private void RecallNewerInput()
+        {
+            if (_historyIndex < 0 || _inputHistory.Count == 0) return;
+
+            if (_historyIndex < _inputHistory.Count - 1)
+            {
+                _historyIndex++;
+                _draft = _inputHistory[_historyIndex];
+            }
+            else
+            {
+                _historyIndex = -1;
+                _draft = _historyScratch;
+                _historyScratch = string.Empty;
+            }
+
+            _wantFocus = true;
         }
 
         private static string BuildDisplay(string sender, string text, bool isLocal)
         {
-            bool isServer = string.Equals(sender, "Server", StringComparison.OrdinalIgnoreCase);
+            string safeSender = TextChatSanitizer.Sanitize(sender);
+            string safeText = TextChatSanitizer.Sanitize(text);
+
+            bool isServer = string.Equals(safeSender, "Server", StringComparison.OrdinalIgnoreCase);
             if (isServer)
-                return $"[<color=#f5a121>Server</color>] {text}";
+                return $"[Server] {safeText}";
             if (isLocal)
-                return $"<b>{sender}</b>: {text}";
-            return $"[<color=#59b5ff>Global</color>] <b>{sender}</b>: {text}";
+                return $"{safeSender}: {safeText}";
+            return $"[Global] {safeSender}: {safeText}";
         }
 
         // ── Settings ─────────────────────────────────────────────────────────
@@ -466,7 +554,7 @@ namespace S1DSMod.TextChat
             {
                 wordWrap = true,
                 fontSize = 12,
-                richText = true
+                richText = false
             };
             _sMsgGlobal.normal.textColor = Color.white;
 
@@ -477,11 +565,33 @@ namespace S1DSMod.TextChat
             _sInputBg.normal.background = MakeTex(C_INPUT_BG);
             _sInputBg.border = new RectOffset(0, 0, 0, 0);
 
+            _sInputBgFocused = new GUIStyle(_sInputBg);
+            _sInputBgFocused.normal.background = MakeTex(C_INPUT_BG_FOCUSED);
+
             _sField = new GUIStyle(GUI.skin.textField) { fontSize = 12 };
             _sField.normal.textColor = Color.white;
             _sField.focused.textColor = Color.white;
             _sField.normal.background = MakeTex(C_FIELD_BG);
-            _sField.focused.background = MakeTex(new Color(0.19f, 0.21f, 0.28f, 1f));
+            _sField.focused.background = MakeTex(C_FIELD_BG_FOCUSED);
+            _sField.padding = new RectOffset(8, 8, 4, 4);
+
+            _sVScrollbar = new GUIStyle(GUI.skin.verticalScrollbar);
+            _sVScrollbar.normal.background = MakeTex(C_SCROLL_TRACK);
+            _sVScrollbar.hover.background = _sVScrollbar.normal.background;
+            _sVScrollbar.active.background = _sVScrollbar.normal.background;
+            _sVScrollbar.fixedWidth = 10f;
+
+            _sVScrollbarThumb = new GUIStyle(GUI.skin.verticalScrollbarThumb);
+            _sVScrollbarThumb.normal.background = MakeTex(C_SCROLL_THUMB);
+            _sVScrollbarThumb.hover.background = MakeTex(C_SCROLL_THUMB_HOVER);
+            _sVScrollbarThumb.active.background = MakeTex(C_SCROLL_THUMB_ACTIVE);
+            _sVScrollbarThumb.fixedWidth = 10f;
+
+            _sVScrollbarBtn = new GUIStyle(GUI.skin.verticalScrollbarUpButton);
+            _sVScrollbarBtn.normal.background = MakeTex(new Color(0f, 0f, 0f, 0f));
+            _sVScrollbarBtn.hover.background = _sVScrollbarBtn.normal.background;
+            _sVScrollbarBtn.active.background = _sVScrollbarBtn.normal.background;
+            _sVScrollbarBtn.fixedHeight = 0f;
 
             _sLabel = new GUIStyle(GUI.skin.label)
             {
