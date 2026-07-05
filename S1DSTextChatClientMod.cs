@@ -7,10 +7,17 @@ using DedicatedServerMod.Shared.Networking;
 using MelonLoader;
 using MelonLoader.Utils;
 using Newtonsoft.Json;
+#if IL2CPP
+using Il2CppScheduleOne;
+using Il2CppScheduleOne.DevUtilities;
+using Il2CppScheduleOne.PlayerScripts;
+using Il2CppScheduleOne.UI;
+#else
 using ScheduleOne;
 using ScheduleOne.DevUtilities;
 using ScheduleOne.PlayerScripts;
 using ScheduleOne.UI;
+#endif
 using UnityEngine;
 
 [assembly: MelonInfo(typeof(S1DSMod.TextChat.S1DSTextChatClientMod), "S1DS-TextChat", "1.1.0", "ZackaryH8")]

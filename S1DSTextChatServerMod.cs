@@ -8,13 +8,19 @@ using DedicatedServerMod.Server.Core;
 using DedicatedServerMod.Server.Player;
 using DedicatedServerMod.Shared.Networking;
 using DedicatedServerMod.Shared.Permissions;
-using FishNet;
-using FishNet.Connection;
 using MelonLoader;
 using MelonLoader.Utils;
 using Newtonsoft.Json;
 using UnityEngine;
+#if IL2CPP
+using Il2CppFishNet;
+using Il2CppFishNet.Connection;
+using Player = Il2CppScheduleOne.PlayerScripts.Player;
+#else
+using FishNet;
+using FishNet.Connection;
 using Player = ScheduleOne.PlayerScripts.Player;
+#endif
 
 [assembly: MelonInfo(typeof(S1DSMod.TextChat.S1DSTextChatServerMod), "S1DS-TextChat", "1.1.0", "ZackaryH8")]
 [assembly: S1DSClientCompanion(
