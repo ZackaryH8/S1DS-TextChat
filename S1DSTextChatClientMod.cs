@@ -8,6 +8,7 @@ using MelonLoader;
 using MelonLoader.Utils;
 using Newtonsoft.Json;
 #if IL2CPP
+using Il2CppInterop.Runtime;
 using Il2CppScheduleOne;
 using Il2CppScheduleOne.DevUtilities;
 using Il2CppScheduleOne.PlayerScripts;
@@ -100,15 +101,15 @@ namespace S1DSMod.TextChat
         public override void OnClientShutdown()
         {
             CustomMessaging.ClientMessageReceived -= OnClientMessage;
-            GameInput.DeregisterExitListener(OnChatExit);
+            DeregisterChatExitListener();
         }
 
         public override void OnClientPlayerReady()
         {
             // Register AFTER scene load — exitListeners is cleared by onPreSceneChange,
             // so OnClientInitialize is too early.
-            GameInput.DeregisterExitListener(OnChatExit);  // guard against duplicates
-            GameInput.RegisterExitListener(OnChatExit, priority: 10);
+            DeregisterChatExitListener();  // guard against duplicates
+            RegisterChatExitListener();
             _ready = true;
             _inputMode = InputMode.None;
             _draft = string.Empty;
@@ -117,11 +118,29 @@ namespace S1DSMod.TextChat
         public override void OnDisconnectedFromServer()
         {
             SetChatFocus(false);
-            GameInput.DeregisterExitListener(OnChatExit);
+            DeregisterChatExitListener();
             _ready = false;
             _inputMode = InputMode.None;
             _draft = string.Empty;
         }
+
+#if IL2CPP
+        // Il2Cpp-generated APIs take a generated delegate type, and register/deregister
+        // must see the same instance — cache the converted delegate.
+        private GameInput.ExitDelegate _chatExitListener;
+
+        private GameInput.ExitDelegate ChatExitListener =>
+            _chatExitListener ??= DelegateSupport.ConvertDelegate<GameInput.ExitDelegate>(
+                new Action<ExitAction>(OnChatExit));
+
+        private void RegisterChatExitListener() => GameInput.RegisterExitListener(ChatExitListener, 10);
+
+        private void DeregisterChatExitListener() => GameInput.DeregisterExitListener(ChatExitListener);
+#else
+        private void RegisterChatExitListener() => GameInput.RegisterExitListener(OnChatExit, priority: 10);
+
+        private void DeregisterChatExitListener() => GameInput.DeregisterExitListener(OnChatExit);
+#endif
 
         public override void OnUpdate()
         {
