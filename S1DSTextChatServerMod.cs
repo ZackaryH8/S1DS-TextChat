@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using DedicatedServerMod.API;
+using DedicatedServerMod.API.Metadata;
 using DedicatedServerMod.Server.Commands.Output;
 using DedicatedServerMod.Server.Core;
 using DedicatedServerMod.Server.Player;
 using DedicatedServerMod.Shared.Networking;
+using DedicatedServerMod.Shared.Permissions;
 using FishNet;
 using FishNet.Connection;
 using MelonLoader;
@@ -35,7 +37,12 @@ namespace S1DSMod.TextChat
             = new Dictionary<int, RateLimitState>();
         private readonly Dictionary<string, DateTime> _mutedUntilByPlayerId
             = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
-        private PlayerPermissions _playerPermissions;
+
+        private static class TextChatPermissionNodes
+        {
+            public const string Moderate = "textchat.moderate";
+            public const string RateLimitBypass = "textchat.ratelimit.bypass";
+        }
 
         // ── Lifecycle ────────────────────────────────────────────────────────
 
@@ -43,10 +50,44 @@ namespace S1DSMod.TextChat
         {
             LoadSettings();
             _playerManager = S1DS.Server.Players;
-            _playerPermissions = new PlayerPermissions(LoggerInstance);
+            RegisterPermissionNodes();
             CustomMessaging.ServerMessageReceived -= OnServerMessage;
             CustomMessaging.ServerMessageReceived += OnServerMessage;
             LoggerInstance.Msg("S1DS-TextChat server mod initialized.");
+        }
+
+        private void RegisterPermissionNodes()
+        {
+            var permissions = S1DS.Server.Permissions;
+            if (permissions == null) return;
+
+            permissions.RegisterPermissionDefinitions("zackaryh8.textchat", new[]
+            {
+                new PermissionDefinition
+                {
+                    Node = TextChatPermissionNodes.Moderate,
+                    Category = "TextChat",
+                    Description = "Mute and unmute chat participants via /mute and /unmute.",
+                    SuggestedGroups =
+                    {
+                        PermissionBuiltIns.Groups.Moderator,
+                        PermissionBuiltIns.Groups.Administrator,
+                        PermissionBuiltIns.Groups.Operator,
+                    },
+                },
+                new PermissionDefinition
+                {
+                    Node = TextChatPermissionNodes.RateLimitBypass,
+                    Category = "TextChat",
+                    Description = "Bypass chat and command rate limits.",
+                    SuggestedGroups =
+                    {
+                        PermissionBuiltIns.Groups.Moderator,
+                        PermissionBuiltIns.Groups.Administrator,
+                        PermissionBuiltIns.Groups.Operator,
+                    },
+                },
+            });
         }
 
         public override void OnServerShutdown()
@@ -289,7 +330,7 @@ namespace S1DSMod.TextChat
 
         private bool CanModerateMutes(ConnectedPlayerInfo info)
         {
-            return IsPrivileged(info);
+            return HasTextChatPermission(info, TextChatPermissionNodes.Moderate);
         }
 
         private ConnectedPlayerInfo FindConnectedPlayer(string query)
@@ -502,14 +543,38 @@ namespace S1DSMod.TextChat
 
         private bool IsPrivileged(ConnectedPlayerInfo info)
         {
+            return HasTextChatPermission(info, TextChatPermissionNodes.RateLimitBypass);
+        }
+
+        /// <summary>
+        /// Grants the given TextChat node, or falls back to elevated built-in
+        /// groups (moderator/administrator/operator) and the settings exempt list.
+        /// </summary>
+        private bool HasTextChatPermission(ConnectedPlayerInfo info, string node)
+        {
             if (info == null)
             {
                 return false;
             }
 
-            if (_playerPermissions != null && _playerPermissions.HasElevatedPrivileges(info))
+            string subjectId = (info.TrustedUniqueId ?? string.Empty).Trim();
+            var permissions = S1DS.Server.Permissions;
+            if (permissions != null && subjectId.Length > 0)
             {
-                return true;
+                if (permissions.HasPermission(subjectId, node))
+                {
+                    return true;
+                }
+
+                foreach (string group in permissions.GetEffectiveGroups(subjectId))
+                {
+                    if (string.Equals(group, PermissionBuiltIns.Groups.Moderator, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(group, PermissionBuiltIns.Groups.Administrator, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(group, PermissionBuiltIns.Groups.Operator, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
             }
 
             return IsIdExempt(info.TrustedUniqueId);

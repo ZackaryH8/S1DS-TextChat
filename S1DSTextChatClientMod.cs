@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using DedicatedServerMod.API;
+using DedicatedServerMod.API.Metadata;
 using DedicatedServerMod.Shared.Networking;
 using MelonLoader;
 using MelonLoader.Utils;
